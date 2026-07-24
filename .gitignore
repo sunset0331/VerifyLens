@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# ML / Models
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.gguf
+checkpoints/
+outputs/
+runs/
+wandb/
+mlruns/
+
+# Data (don't commit raw data)
+data/raw/
+data/real_samples/
+*.csv
+*.parquet
+*.arrow
+
+# Secrets / Keys
+.env
+.env.*
+*.pem
+*.key
+secrets.json
+
+# OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# HuggingFace cache
+.cache/
+huggingface/

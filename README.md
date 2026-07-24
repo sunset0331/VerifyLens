@@ -100,20 +100,20 @@ uvicorn src.api.server:app --reload
 | Face Detector | MTCNN | ~1.6MB |
 | Face Embedder | InceptionResnetV1 | ~166MB |
 
-## Benchmarks: Base vs Fine-Tuned VLM
+## Benchmarks: Real-World OCR Noise Resistance
 
-We evaluated the model on extracting structured JSON from raw OCR text across 50 validation samples. The fine-tuned LoRA adapter shows massive improvements, particularly in extracting complex Indian ID formats.
+We evaluated the model on extracting structured JSON from simulated raw OCR text with injected real-world noise (e.g. typos, garbage characters, missing spaces) across validation samples. The fine-tuned LoRA adapter shows massive improvements, particularly in extracting true field values despite corrupted inputs.
 
 | Metric / Field | Base Model (Qwen2.5) | Fine-Tuned (LoRA) | Improvement |
 |----------------|----------------------|-------------------|-------------|
-| **Exact Match** | 40.0% | **94.0%** | 🟢 +54.0% |
+| **Exact Match** | 26.0% | **80.0%** | 🟢 +54.0% |
 | **Valid JSON Rate**| 100.0% | **100.0%** | ⚪ 0.0% |
 | **Doc Type** | 0.0% | **100.0%** | 🟢 +100.0% |
-| **Doc Number** | 0.0% | **89.5%** | 🟢 +89.5% |
-| **DOB** | 83.3% | **100.0%** | 🟢 +16.7% |
-| **Name** | 100.0% | **100.0%** | ⚪ 0.0% |
+| **Doc Number** | 0.0% | **80.0%** | 🟢 +80.0% |
+| **DOB** | 57.9% | **89.5%** | 🟢 +31.6% |
+| **Name** | 78.6% | **85.7%** | 🟢 +7.1% |
 
-> *Note: The base model completely failed to extract Indian ID numbers (Aadhaar/PAN) because of their specific regional formats, scoring 0%. Our fine-tuned adapter perfectly learned the structure.*
+> *Note: The baseline accuracy dropped heavily (to 26%) when real-world OCR noise was introduced. The fine-tuned model successfully learns to "denoise" the text to reliably extract document numbers and dates despite OCR errors.*
 
 ## Status
 

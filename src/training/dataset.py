@@ -143,6 +143,41 @@ SYSTEM_PROMPT = (
 )
 
 
+def _inject_ocr_noise(text: str, noise_prob: float = 0.05) -> str:
+    """Simulate real-world OCR errors like character swapping, dropping, and spacing issues."""
+    if random.random() > 0.8:  # 20% of documents are perfectly clean
+        return text
+
+    noisy_chars = []
+    # Common OCR confusions
+    confusions = {
+        '0': 'O', 'O': '0',
+        '1': 'I', 'I': '1', 'l': '1',
+        'S': '5', '5': 'S',
+        'B': '8', '8': 'B',
+        'Z': '2', '2': 'Z',
+        'A': '4',
+    }
+    
+    for char in text:
+        if random.random() < noise_prob:
+            action = random.choice(["confuse", "drop", "space", "garbage"])
+            if action == "confuse" and char in confusions:
+                noisy_chars.append(confusions[char])
+            elif action == "drop":
+                continue # Skip character
+            elif action == "space":
+                noisy_chars.append(char + " ")
+            elif action == "garbage":
+                noisy_chars.append(random.choice("!@#$%^&*()_+-=[]{}|;:,.<>?~`"))
+            else:
+                noisy_chars.append(char)
+        else:
+            noisy_chars.append(char)
+            
+    return "".join(noisy_chars)
+
+
 def _make_record(doc_type: str) -> Dict:
     """Generate one synthetic identity record."""
     name = fake.name()
@@ -176,7 +211,11 @@ def _make_record(doc_type: str) -> Dict:
 
     # Simulate OCR output
     ocr_text = OCR_TEMPLATES[doc_type].format(**context)
-    return {"context": context, "ocr_text": ocr_text}
+    
+    # Inject realistic OCR noise
+    noisy_ocr_text = _inject_ocr_noise(ocr_text, noise_prob=0.04)
+    
+    return {"context": context, "ocr_text": noisy_ocr_text}
 
 
 def _format_message(ocr_text: str, question: str, answer: str) -> Dict:

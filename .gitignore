@@ -54,3 +54,5 @@ Thumbs.db
 # HuggingFace cache
 .cache/
 huggingface/
+.venv/
+__pycache__/

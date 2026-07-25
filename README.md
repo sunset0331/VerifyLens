@@ -90,6 +90,20 @@ pip install -e .
 uvicorn src.api.server:app --reload
 ```
 
+## Testing the VLM Locally (Apple Silicon)
+
+If you are on an M-Series Mac and encounter `Pillow` or `torch` C-binding compilation issues with the standard vision libraries (`facenet-pytorch`, `paddleocr`), you can still natively test the **fine-tuned VLM extraction engine** using the MLX backend. 
+
+We provide a standalone testing script that isolates the LLM and runs it against simulated noisy OCR text to demonstrate its extraction capabilities without requiring PyTorch:
+
+```bash
+# Run the VLM on default heavily degraded synthetic OCR text
+python test_vlm_only.py
+
+# Or pass your own messy text string:
+python test_vlm_only.py --text "P A 5 5 P 0 R T | Name: J0hn D0e | D0B: 01/01/90 | Numb3r: A1234567"
+```
+
 ## Model Card
 
 | Component | Model | Size |

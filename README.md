@@ -100,6 +100,19 @@ uvicorn src.api.server:app --reload
 | Face Detector | MTCNN | ~1.6MB |
 | Face Embedder | InceptionResnetV1 | ~166MB |
 
+## Training Details & Synthetic Data
+
+To build a robust field extractor without compromising PII (Personally Identifiable Information), the model was fine-tuned exclusively on locally-generated synthetic data.
+
+- **Dataset Volume**: 3,000 synthetic QA pairs (85% train / 15% validation split).
+- **Synthetic Parameters**:
+  - **Generator**: `Faker` (en_IN locale) to generate realistic Indian names, addresses, DOBs, and ID numbers (Aadhaar, PAN, Passport, DL).
+  - **Noise Injection**: Simulated real-world OCR degradation with a 4% noise probability per character. This injects typical OCR confusions (e.g., `0` vs `O`, `8` vs `B`), random dropped characters, and garbage symbols to simulate blurry or heavily degraded ID photos.
+- **Fine-Tuning Configuration (LoRA)**:
+  - **Target Layers**: The last 8 transformer layers (`--num-layers 8`).
+  - **Method**: QLoRA (4-bit quantization) on Apple Silicon via MLX (`mlx-lm.lora`).
+  - **Hyperparameters**: 600 iterations, batch size 4, learning rate 1e-4.
+
 ## Benchmarks: Real-World OCR Noise Resistance
 
 We evaluated the model on extracting structured JSON from simulated raw OCR text with injected real-world noise (e.g. typos, garbage characters, missing spaces) across validation samples. The fine-tuned LoRA adapter shows massive improvements, particularly in extracting true field values despite corrupted inputs.

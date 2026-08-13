@@ -65,18 +65,8 @@ class VerificationPipeline:
             None, self._doc_classifier.classify, id_image
         )
 
-        # 3. OCR (fast)
-        ocr_fields = await loop.run_in_executor(
-            None, self._ocr.extract, id_image, doc_type
-        )
-
-        # 4. VLM Extraction (slow, intensive)
-        vlm_fields = await loop.run_in_executor(
-            None, self._vlm.extract_all, id_image
-        )
-
-        # 5. Face Verification
-        face_result = await loop.run_in_executor(
+        # 3. Start Face Verification concurrently (independent of document text)
+        face_task = loop.run_in_executor(
             None, 
             self._face_matcher.verify_pipeline, 
             self._face_detector, 
@@ -85,10 +75,25 @@ class VerificationPipeline:
             selfie_image
         )
 
-        # 6. Fusion
+        # 4. OCR (fast)
+        ocr_fields = await loop.run_in_executor(
+            None, self._ocr.extract, id_image, doc_type
+        )
+        
+        raw_text = ocr_fields.get("raw_text", "")
+
+        # 5. VLM Extraction (using OCR text, sequential after OCR)
+        vlm_fields = await loop.run_in_executor(
+            None, self._vlm.extract_all, raw_text
+        )
+
+        # 6. Await Face Verification
+        face_result = await face_task
+
+        # 7. Fusion
         # Prefer VLM fields, fallback to OCR fields
         final_fields = {}
-        for key in ["name", "dob", "doc_number", "gender"]:
+        for key in ["name", "dob", "doc_number", "gender", "address"]:
             val = vlm_fields.get(key)
             if not val and key in ocr_fields:
                 val = ocr_fields[key]

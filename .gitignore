@@ -56,3 +56,7 @@ Thumbs.db
 huggingface/
 .venv/
 __pycache__/
+.venv312/
+data/synthetic/
+.paddlex/
+eval_results.json

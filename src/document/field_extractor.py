@@ -1,15 +1,14 @@
 """
 document/field_extractor.py
 -----------------------------
-VLM-based structured field extraction using a QLoRA fine-tuned
-Qwen2-VL-2B-Instruct model.
+VLM-based structured field extraction using an MLX-LM fine-tuned
+Qwen2.5-1.5B-Instruct model with a LoRA adapter.
 
-Given a document image + a question, returns a structured JSON answer.
-Used as a second-pass extractor after OCR, especially for name and
-address fields where regex fails.
+Given raw OCR text from a document, returns a structured JSON answer.
+Used as a second-pass extractor after OCR.
 
-The model is loaded with 4-bit quantization (BitsAndBytes) to run
-on consumer hardware (< 6GB VRAM / unified memory).
+The model is loaded natively via MLX to run efficiently on Apple
+Silicon unified memory.
 """
 
 from __future__ import annotations
@@ -17,143 +16,62 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
-import torch
-from PIL import Image
-from transformers import (
-    AutoProcessor,
-    BitsAndBytesConfig,
-    Qwen2VLForConditionalGeneration,
-)
-
-from src.utils.image_utils import load_image, ImageInput
-from src.utils.config import config
+from mlx_lm import load, generate
+from mlx_lm.sample_utils import make_sampler
 
 
 # ── Prompt template ──────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = (
-    "You are a document intelligence assistant. "
-    "Given an image of an identity document and a question, "
-    "respond with ONLY a valid JSON object containing the answer. "
-    'Example: {"name": "Utkarsh Gaur"} or {"dob": "15/08/1998"}. '
-    "If the field is not visible, respond with null for the value."
+    "You are a document intelligence assistant specializing in Indian identity documents. "
+    "You will receive the OCR-extracted text from an identity document and a question. "
+    "Respond ONLY with a valid JSON object containing the requested field(s). "
+    'Example: {"name": "Ravi Sharma"} or {"dob": "23/04/1990"}. '
+    "If a field is not found in the text, use null as the value."
 )
-
-FIELD_QUESTIONS = {
-    "name": "What is the full name printed on this document?",
-    "dob": "What is the date of birth on this document? Return in DD/MM/YYYY format.",
-    "doc_number": "What is the document ID number or Aadhaar/PAN/Passport number?",
-    "doc_type": "What type of identity document is this?",
-    "gender": "What is the gender of the person on this document?",
-    "address": "What is the address printed on this document, if any?",
-}
 
 
 class VLMFieldExtractor:
     """
-    Fine-tuned Qwen2-VL field extractor for identity documents.
+    Fine-tuned MLX Qwen2.5-1.5B field extractor for identity documents.
 
     Parameters
     ----------
-    model_path : str or Path
-        HuggingFace model ID or local checkpoint path.
-        Defaults to the fine-tuned checkpoint from training_config.yaml,
-        falls back to the base model if checkpoint not found.
-    device : str, optional
-        "cuda", "mps", or "cpu". Auto-detected if not specified.
+    model_path : str
+        HuggingFace model ID or local path.
+        Defaults to 'mlx-community/Qwen2.5-1.5B-Instruct-4bit'.
+    adapter_path : str
+        Path to the trained MLX LoRA adapter.
+        Defaults to 'checkpoints/verifylens-adapter'.
 
     Example
     -------
     >>> extractor = VLMFieldExtractor()
-    >>> fields = extractor.extract_all("path/to/aadhaar.jpg")
+    >>> fields = extractor.extract_all("Document OCR text: ...")
     >>> print(fields)
-    {"name": "Ravi Sharma", "dob": "23/04/1990", "doc_number": "1234 5678 9012", ...}
+    {"name": "Ravi Sharma", "dob": "23/04/1990", ...}
     """
 
     def __init__(
         self,
-        model_path: Optional[Union[str, Path]] = None,
-        device: Optional[str] = None,
+        model_path: str = "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+        adapter_path: str = "checkpoints/verifylens-adapter",
     ):
-        self.device = device or (
-            "cuda" if torch.cuda.is_available()
-            else "mps" if torch.backends.mps.is_available()
-            else "cpu"
-        )
+        print(f"[VLMFieldExtractor] Loading base model: {model_path}")
+        print(f"[VLMFieldExtractor] Loading adapter: {adapter_path}")
+        
+        # Load the model and tokenizer once and reuse them
+        if Path(adapter_path).exists():
+            self.model, self.tokenizer = load(model_path, adapter_path=adapter_path)
+        else:
+            print(f"[WARNING] Adapter path '{adapter_path}' not found! Loading base model only.")
+            self.model, self.tokenizer = load(model_path)
 
-        # Resolve model path: prefer fine-tuned checkpoint, fall back to base
-        cfg = config.vlm
-        if model_path is None:
-            checkpoint_dir = Path("checkpoints/qwen2vl-verifylens")
-            model_path = str(checkpoint_dir) if checkpoint_dir.exists() else cfg.name
-
-        print(f"[VLMFieldExtractor] Loading model from: {model_path}")
-        self._load_model(str(model_path), cfg)
-
-    def _load_model(self, model_path: str, cfg):
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=cfg.load_in_4bit,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_quant_type=cfg.bnb_4bit_quant_type,
-            bnb_4bit_use_double_quant=cfg.use_nested_quant,
-        )
-
-        self.model = Qwen2VLForConditionalGeneration.from_pretrained(
-            model_path,
-            quantization_config=bnb_config,
-            device_map="auto",
-            trust_remote_code=True,
-        )
-        self.model.eval()
-        self.processor = AutoProcessor.from_pretrained(
-            model_path, trust_remote_code=True
-        )
-
-    @torch.no_grad()
-    def ask(
-        self,
-        image: ImageInput,
-        question: str,
-        max_new_tokens: int = 128,
-    ) -> str:
-        """
-        Ask a free-form question about the document image.
-
-        Returns raw model output string (JSON expected but not enforced).
-        """
-        img = load_image(image)
-
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": img},
-                    {"type": "text", "text": question},
-                ],
-            },
-        ]
-
-        text_input = self.processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        inputs = self.processor(
-            text=[text_input],
-            images=[img],
-            padding=True,
-            return_tensors="pt",
-        ).to(self.model.device)
-
-        generated = self.model.generate(**inputs, max_new_tokens=max_new_tokens)
-        # Trim the input tokens from output
-        trimmed = generated[:, inputs["input_ids"].shape[1]:]
-        return self.processor.batch_decode(trimmed, skip_special_tokens=True)[0].strip()
-
-    def _parse_json_output(self, raw: str) -> Optional[Any]:
+    def _parse_json_output(self, raw: str) -> Dict[str, Any]:
         """Extract the first JSON object from model output."""
-        # Try direct parse
+        raw = raw.strip()
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
@@ -165,40 +83,46 @@ class VLMFieldExtractor:
                 return json.loads(match.group())
             except json.JSONDecodeError:
                 pass
-        return None
+        return {}
 
-    def extract_field(
-        self, image: ImageInput, field: str
-    ) -> Optional[str]:
+    def extract_all(self, ocr_text: str) -> Dict[str, Optional[str]]:
         """
-        Extract a single field from a document image.
+        Extract all standard fields from a document's OCR text in a single pass.
 
         Parameters
         ----------
-        field : str
-            One of: name, dob, doc_number, doc_type, gender, address
-        """
-        if field not in FIELD_QUESTIONS:
-            raise ValueError(f"Unknown field '{field}'. Choose from: {list(FIELD_QUESTIONS)}")
-
-        raw = self.ask(image, FIELD_QUESTIONS[field])
-        parsed = self._parse_json_output(raw)
-
-        if isinstance(parsed, dict):
-            return parsed.get(field) or next(iter(parsed.values()), None)
-        return raw if raw else None
-
-    def extract_all(self, image: ImageInput) -> Dict[str, Optional[str]]:
-        """
-        Extract all standard fields from a document image.
-
-        Makes one VLM call per field. For production, consider batching.
+        ocr_text : str
+            The raw text extracted from the document by PaddleOCR.
 
         Returns
         -------
         dict with keys: name, dob, doc_number, doc_type, gender, address
         """
-        results = {}
-        for field in FIELD_QUESTIONS:
-            results[field] = self.extract_field(image, field)
-        return results
+        if not ocr_text or not ocr_text.strip():
+            return {}
+
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"Document OCR text:\n{ocr_text}\n\nQuestion: Extract all key fields from this document as JSON."
+            },
+        ]
+
+        prompt = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+
+        try:
+            raw_output = generate(
+                self.model,
+                self.tokenizer,
+                prompt=prompt,
+                max_tokens=128,
+                verbose=False,
+                sampler=make_sampler(temp=0),  # greedy decoding: deterministic, reproducible
+            )
+            return self._parse_json_output(raw_output)
+        except Exception as e:
+            print(f"[VLMFieldExtractor] Extraction failed: {e}")
+            return {}

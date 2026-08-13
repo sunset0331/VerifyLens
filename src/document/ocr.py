@@ -55,10 +55,9 @@ class OCRExtractor:
             try:
                 from paddleocr import PaddleOCR  # type: ignore
                 self._engine = PaddleOCR(
-                    use_angle_cls=True,
+                    use_textline_orientation=True,
                     lang=self._lang,
-                    use_gpu=self._use_gpu,
-                    show_log=False,
+                    device='gpu:0' if self._use_gpu else 'cpu',
                 )
             except ImportError:
                 raise ImportError(
@@ -83,12 +82,14 @@ class OCRExtractor:
         img_np = np.array(img)
 
         engine = self._get_engine()
-        result = engine.ocr(img_np, cls=True)
+        result = engine.predict(img_np)
 
         blocks = []
-        if result and result[0]:
-            for line in result[0]:
-                _, (text, conf) = line
+        if result and len(result) > 0:
+            res_dict = result[0]
+            texts = res_dict.get('rec_texts', [])
+            scores = res_dict.get('rec_scores', [])
+            for text, conf in zip(texts, scores):
                 if text.strip():
                     blocks.append((text.strip(), float(conf)))
         return blocks

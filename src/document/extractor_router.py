@@ -8,6 +8,7 @@ Supported modes
 ---------------
   "ocr_llm"  →  OCRLLMExtractor  (Approach 1: image → OCR → text LLM → JSON)
   "vlm"      →  VLMExtractor     (Approach 2: image → VLM → JSON)
+  "hybrid"   →  HybridExtractor  (Approach 3: VLM doc_type + OCR+LoRA text)
 
 Usage
 -----
@@ -25,7 +26,7 @@ from typing import Optional
 
 from src.document.base_extractor import DocumentExtractor
 
-SUPPORTED_MODES = ("ocr_llm", "vlm")
+SUPPORTED_MODES = ("ocr_llm", "vlm", "hybrid")
 
 
 def get_extractor(
@@ -45,7 +46,7 @@ def get_extractor(
     Parameters
     ----------
     mode : str
-        "ocr_llm" or "vlm".
+        "ocr_llm", "vlm", or "hybrid".
     vlm_model : str, optional
         Override the default VLM model path.
     ocr_llm_model : str, optional
@@ -87,6 +88,21 @@ def get_extractor(
             model_path=ocr_llm_model or _DEFAULT_MODEL,
             adapter_path=ocr_llm_adapter_path or _DEFAULT_ADAPTER,
             max_tokens=ocr_llm_max_tokens,
+        )
+
+    elif mode == "hybrid":
+        from src.document.hybrid.hybrid_extractor import HybridExtractor
+        from src.document.vlm.vlm_extractor import _DEFAULT_VLM_MODEL
+        from src.document.ocr_llm_extractor import _DEFAULT_MODEL, _DEFAULT_ADAPTER
+
+        return HybridExtractor(
+            vlm_model_path=vlm_model or _DEFAULT_VLM_MODEL,
+            vlm_max_tokens=vlm_max_new_tokens,
+            vlm_temperature=vlm_temperature,
+            vlm_resize_max_px=vlm_resize_max_px,
+            ocr_llm_model_path=ocr_llm_model or _DEFAULT_MODEL,
+            ocr_llm_adapter_path=ocr_llm_adapter_path or _DEFAULT_ADAPTER,
+            ocr_llm_max_tokens=ocr_llm_max_tokens,
         )
 
     else:

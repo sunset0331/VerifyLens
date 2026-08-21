@@ -49,6 +49,7 @@ class ExtractionConfig:
     mode : str
         'ocr_llm' — Approach 1: image → PaddleOCR → Qwen2.5-1.5B text LLM → JSON
         'vlm'     — Approach 2: image → Qwen2.5-VL-2B (MLX) → JSON
+        'hybrid'  — Approach 3: VLM for doc_type + OCR+LoRA for identity fields
     """
     mode: str = "ocr_llm"
     # ── VLM (Approach 2) settings ────────────────────────────────────────────

@@ -1,0 +1,206 @@
+{
+  "OCR + Base": {
+    "total_samples": 200,
+    "json_valid_rate": 100.0,
+    "exact_match_rate": 0.0,
+    "exact_match_no_doctype_rate": 0.0,
+    "core_identity_exact_match_rate": 0.0,
+    "field_accuracies": {
+      "name": 95.0,
+      "dob": 41.0,
+      "doc_number": 0.0,
+      "doc_type": 0.0,
+      "gender": 100.0,
+      "address": 100.0
+    },
+    "latency_ms": {
+      "mean": 887.1,
+      "median": 828.5,
+      "min": 714.1,
+      "max": 1555.7,
+      "p95": 1131.0
+    },
+    "doc_types": {
+      "aadhaar": {
+        "samples": 64,
+        "exact_match_rate": 0.0,
+        "exact_match_no_doctype_rate": 0.0,
+        "core_identity_exact_match_rate": 0.0,
+        "field_accuracies": {
+          "name": 98.44,
+          "dob": 1.56,
+          "doc_number": 0.0,
+          "doc_type": 0.0,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      },
+      "passport": {
+        "samples": 63,
+        "exact_match_rate": 0.0,
+        "exact_match_no_doctype_rate": 0.0,
+        "core_identity_exact_match_rate": 0.0,
+        "field_accuracies": {
+          "name": 96.83,
+          "dob": 80.95,
+          "doc_number": 0.0,
+          "doc_type": 0.0,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      },
+      "pan": {
+        "samples": 73,
+        "exact_match_rate": 0.0,
+        "exact_match_no_doctype_rate": 0.0,
+        "core_identity_exact_match_rate": 0.0,
+        "field_accuracies": {
+          "name": 90.41,
+          "dob": 41.1,
+          "doc_number": 0.0,
+          "doc_type": 0.0,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      }
+    },
+    "error_sample_count": 528,
+    "model_load_time_s": 4.5
+  },
+  "OCR + LoRA": {
+    "total_samples": 200,
+    "json_valid_rate": 100.0,
+    "exact_match_rate": 0.5,
+    "exact_match_no_doctype_rate": 75.5,
+    "core_identity_exact_match_rate": 75.5,
+    "field_accuracies": {
+      "name": 96.5,
+      "dob": 99.5,
+      "doc_number": 78.5,
+      "doc_type": 2.0,
+      "gender": 100.0,
+      "address": 100.0
+    },
+    "latency_ms": {
+      "mean": 952.9,
+      "median": 918.0,
+      "min": 863.6,
+      "max": 1435.3,
+      "p95": 1076.2
+    },
+    "doc_types": {
+      "aadhaar": {
+        "samples": 64,
+        "exact_match_rate": 0.0,
+        "exact_match_no_doctype_rate": 54.69,
+        "core_identity_exact_match_rate": 54.69,
+        "field_accuracies": {
+          "name": 98.44,
+          "dob": 100.0,
+          "doc_number": 54.69,
+          "doc_type": 0.0,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      },
+      "passport": {
+        "samples": 63,
+        "exact_match_rate": 0.0,
+        "exact_match_no_doctype_rate": 88.89,
+        "core_identity_exact_match_rate": 88.89,
+        "field_accuracies": {
+          "name": 100.0,
+          "dob": 100.0,
+          "doc_number": 88.89,
+          "doc_type": 0.0,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      },
+      "pan": {
+        "samples": 73,
+        "exact_match_rate": 1.37,
+        "exact_match_no_doctype_rate": 82.19,
+        "core_identity_exact_match_rate": 82.19,
+        "field_accuracies": {
+          "name": 91.78,
+          "dob": 98.63,
+          "doc_number": 90.41,
+          "doc_type": 5.48,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      }
+    },
+    "error_sample_count": 247,
+    "model_load_time_s": 1.4
+  },
+  "VLM": {
+    "total_samples": 200,
+    "json_valid_rate": 100.0,
+    "exact_match_rate": 30.5,
+    "exact_match_no_doctype_rate": 30.5,
+    "core_identity_exact_match_rate": 30.5,
+    "field_accuracies": {
+      "name": 79.5,
+      "dob": 99.0,
+      "doc_number": 36.5,
+      "doc_type": 100.0,
+      "gender": 100.0,
+      "address": 100.0
+    },
+    "latency_ms": {
+      "mean": 4935.3,
+      "median": 4539.6,
+      "min": 3816.5,
+      "max": 8367.4,
+      "p95": 6910.0
+    },
+    "doc_types": {
+      "aadhaar": {
+        "samples": 64,
+        "exact_match_rate": 31.25,
+        "exact_match_no_doctype_rate": 31.25,
+        "core_identity_exact_match_rate": 31.25,
+        "field_accuracies": {
+          "name": 75.0,
+          "dob": 96.88,
+          "doc_number": 37.5,
+          "doc_type": 100.0,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      },
+      "passport": {
+        "samples": 63,
+        "exact_match_rate": 39.68,
+        "exact_match_no_doctype_rate": 39.68,
+        "core_identity_exact_match_rate": 39.68,
+        "field_accuracies": {
+          "name": 79.37,
+          "dob": 100.0,
+          "doc_number": 49.21,
+          "doc_type": 100.0,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      },
+      "pan": {
+        "samples": 73,
+        "exact_match_rate": 21.92,
+        "exact_match_no_doctype_rate": 21.92,
+        "core_identity_exact_match_rate": 21.92,
+        "field_accuracies": {
+          "name": 83.56,
+          "dob": 100.0,
+          "doc_number": 24.66,
+          "doc_type": 100.0,
+          "gender": 100.0,
+          "address": 100.0
+        }
+      }
+    },
+    "error_sample_count": 170,
+    "model_load_time_s": 8.9
+  }
+}

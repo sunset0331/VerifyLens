@@ -34,9 +34,32 @@ class VLMConfig:
 
 @dataclass
 class FaceConfig:
-    detector: str = "retinaface"
-    embedder: str = "arcface"
+    # Note: actual implementation uses MTCNN + InceptionResnetV1 (facenet-pytorch).
+    # These fields are stored for documentation; the face code does not read them yet.
+    detector: str = "mtcnn"
+    embedder: str = "inceptionresnetv1"
     similarity_threshold: float = 0.65
+
+
+@dataclass
+class ExtractionConfig:
+    """
+    Controls which document extraction approach is active.
+
+    mode : str
+        'ocr_llm' — Approach 1: image → PaddleOCR → Qwen2.5-1.5B text LLM → JSON
+        'vlm'     — Approach 2: image → Qwen2.5-VL-2B (MLX) → JSON
+    """
+    mode: str = "ocr_llm"
+    # ── VLM (Approach 2) settings ────────────────────────────────────────────
+    vlm_model: str = "mlx-community/Qwen2.5-VL-3B-Instruct-4bit"
+    vlm_max_new_tokens: int = 256
+    vlm_temperature: float = 0.0
+    vlm_resize_max_px: int = 1120
+    # ── OCR + LLM (Approach 1) settings ─────────────────────────────────────
+    ocr_llm_model: str = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+    ocr_llm_adapter_path: str = "checkpoints/verifylens-adapter"
+    ocr_llm_max_tokens: int = 128
 
 
 @dataclass
@@ -53,6 +76,14 @@ class AppConfig:
     face: FaceConfig = field(default_factory=FaceConfig)
     lora: LoraConfig = field(default_factory=LoraConfig)
     api: APIConfig = field(default_factory=APIConfig)
+    extraction: ExtractionConfig = field(default_factory=ExtractionConfig)
+
+
+def _filter(dc_class, d: dict) -> dict:
+    """Return only keys that are valid fields of a dataclass."""
+    import dataclasses
+    valid = {f.name for f in dataclasses.fields(dc_class)}
+    return {k: v for k, v in d.items() if k in valid}
 
 
 def load_config(path: Path = CONFIG_PATH) -> AppConfig:
@@ -64,15 +95,18 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
     if "model" in raw:
         m = raw["model"]
         if "vlm" in m:
-            cfg.vlm = VLMConfig(**{k: v for k, v in m["vlm"].items()})
+            cfg.vlm = VLMConfig(**_filter(VLMConfig, m["vlm"]))
         if "face" in m:
-            cfg.face = FaceConfig(**{k: v for k, v in m["face"].items()})
+            cfg.face = FaceConfig(**_filter(FaceConfig, m["face"]))
     if "training" in raw and "lora" in raw["training"]:
-        cfg.lora = LoraConfig(**{k: v for k, v in raw["training"]["lora"].items()})
+        cfg.lora = LoraConfig(**_filter(LoraConfig, raw["training"]["lora"]))
     if "api" in raw:
-        cfg.api = APIConfig(**{k: v for k, v in raw["api"].items()})
+        cfg.api = APIConfig(**_filter(APIConfig, raw["api"]))
+    if "extraction" in raw:
+        cfg.extraction = ExtractionConfig(**_filter(ExtractionConfig, raw["extraction"]))
 
     return cfg
+
 
 
 # Singleton for import convenience

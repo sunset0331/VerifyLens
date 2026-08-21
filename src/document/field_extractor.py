@@ -1,128 +1,105 @@
 """
 document/field_extractor.py
 -----------------------------
-VLM-based structured field extraction using an MLX-LM fine-tuned
-Qwen2.5-1.5B-Instruct model with a LoRA adapter.
+DEPRECATED: This class is kept for backward compatibility only.
 
-Given raw OCR text from a document, returns a structured JSON answer.
-Used as a second-pass extractor after OCR.
+The class `VLMFieldExtractor` was misleadingly named — it is NOT a
+Vision-Language Model. It is a text-only LLM (Qwen2.5-1.5B) that
+receives raw OCR text, not a document image.
 
-The model is loaded natively via MLX to run efficiently on Apple
-Silicon unified memory.
+The canonical implementation has moved to:
+    src/document/ocr_llm_extractor.py  →  OCRLLMExtractor
+
+The new genuine VLM (Approach 2) is at:
+    src/document/vlm_extractor.py      →  VLMExtractor
+
+This file re-exports VLMFieldExtractor as a deprecation shim so that
+existing callers (test_vlm_only.py, etc.) continue to work unchanged.
 """
 
 from __future__ import annotations
 
-import json
-import re
-from pathlib import Path
-from typing import Any, Dict, Optional
+import warnings
 
-from mlx_lm import load, generate
-from mlx_lm.sample_utils import make_sampler
-
-
-# ── Prompt template ──────────────────────────────────────────────────────────
-
-SYSTEM_PROMPT = (
-    "You are a document intelligence assistant specializing in Indian identity documents. "
-    "You will receive the OCR-extracted text from an identity document and a question. "
-    "Respond ONLY with a valid JSON object containing the requested field(s). "
-    'Example: {"name": "Ravi Sharma"} or {"dob": "23/04/1990"}. '
-    "If a field is not found in the text, use null as the value."
+from src.document.ocr_llm_extractor import (
+    OCRLLMExtractor as _OCRLLMExtractor,
+    _DEFAULT_MODEL,
+    _DEFAULT_ADAPTER,
 )
 
 
-class VLMFieldExtractor:
+class VLMFieldExtractor(_OCRLLMExtractor):
     """
-    Fine-tuned MLX Qwen2.5-1.5B field extractor for identity documents.
+    DEPRECATED — use OCRLLMExtractor from src.document.ocr_llm_extractor.
 
-    Parameters
-    ----------
-    model_path : str
-        HuggingFace model ID or local path.
-        Defaults to 'mlx-community/Qwen2.5-1.5B-Instruct-4bit'.
-    adapter_path : str
-        Path to the trained MLX LoRA adapter.
-        Defaults to 'checkpoints/verifylens-adapter'.
-
-    Example
-    -------
-    >>> extractor = VLMFieldExtractor()
-    >>> fields = extractor.extract_all("Document OCR text: ...")
-    >>> print(fields)
-    {"name": "Ravi Sharma", "dob": "23/04/1990", ...}
+    This is a text-only LLM extractor (Approach 1: OCR → text LLM → JSON).
+    For the genuine VLM image-based extractor (Approach 2), use VLMExtractor
+    from src.document.vlm_extractor.
     """
 
     def __init__(
         self,
-        model_path: str = "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
-        adapter_path: str = "checkpoints/verifylens-adapter",
+        model_path: str = _DEFAULT_MODEL,
+        adapter_path: str = _DEFAULT_ADAPTER,
     ):
-        print(f"[VLMFieldExtractor] Loading base model: {model_path}")
-        print(f"[VLMFieldExtractor] Loading adapter: {adapter_path}")
-        
-        # Load the model and tokenizer once and reuse them
-        if Path(adapter_path).exists():
-            self.model, self.tokenizer = load(model_path, adapter_path=adapter_path)
-        else:
-            print(f"[WARNING] Adapter path '{adapter_path}' not found! Loading base model only.")
-            self.model, self.tokenizer = load(model_path)
+        warnings.warn(
+            "VLMFieldExtractor is deprecated and will be removed in a future version. "
+            "Use OCRLLMExtractor (Approach 1 — OCR + text LLM) or "
+            "VLMExtractor (Approach 2 — true Vision-Language Model) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(
+            model_path=model_path,
+            adapter_path=adapter_path,
+        )
 
-    def _parse_json_output(self, raw: str) -> Dict[str, Any]:
-        """Extract the first JSON object from model output."""
-        raw = raw.strip()
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            pass
-        # Try to extract JSON from surrounding text
-        match = re.search(r"\{.*?\}", raw, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
-        return {}
-
-    def extract_all(self, ocr_text: str) -> Dict[str, Optional[str]]:
+    def extract_all(self, ocr_text: str) -> dict:
         """
-        Extract all standard fields from a document's OCR text in a single pass.
+        DEPRECATED shim — wraps OCRLLMExtractor for backward compatibility.
 
-        Parameters
-        ----------
-        ocr_text : str
-            The raw text extracted from the document by PaddleOCR.
-
-        Returns
-        -------
-        dict with keys: name, dob, doc_number, doc_type, gender, address
+        Note: This method accepts raw OCR text (not a PIL Image).
+        The new DocumentExtractor interface uses .extract(image) instead.
         """
+        warnings.warn(
+            "extract_all(ocr_text) is deprecated. "
+            "Use .extract(pil_image) via the DocumentExtractor interface.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Reproduce original behavior: call the LLM on already-extracted text
+        from mlx_lm import generate
+        from mlx_lm.sample_utils import make_sampler
+        from src.document.ocr_llm_extractor import (
+            _SYSTEM_PROMPT,
+            _EXTRACTION_QUESTION,
+            _parse_json,
+        )
+
         if not ocr_text or not ocr_text.strip():
             return {}
 
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": _SYSTEM_PROMPT},
             {
                 "role": "user",
-                "content": f"Document OCR text:\n{ocr_text}\n\nQuestion: Extract all key fields from this document as JSON."
+                "content": f"Document OCR text:\n{ocr_text}\n\nQuestion: {_EXTRACTION_QUESTION}",
             },
         ]
-
-        prompt = self.tokenizer.apply_chat_template(
+        prompt = self._tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-
         try:
             raw_output = generate(
-                self.model,
-                self.tokenizer,
+                self._model,
+                self._tokenizer,
                 prompt=prompt,
                 max_tokens=128,
                 verbose=False,
-                sampler=make_sampler(temp=0),  # greedy decoding: deterministic, reproducible
+                sampler=make_sampler(temp=0),
             )
-            return self._parse_json_output(raw_output)
+            parsed, _, _ = _parse_json(raw_output)
+            return parsed or {}
         except Exception as e:
             print(f"[VLMFieldExtractor] Extraction failed: {e}")
             return {}

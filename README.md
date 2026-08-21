@@ -1,8 +1,12 @@
 # VerifyLens
 
-**Multimodal KYC verification pipeline combining document intelligence, OCR-to-JSON language modeling, and facial verification.**
+**Multimodal KYC verification pipeline combining document intelligence, OCR-to-JSON language modeling, direct Vision-Language Models (VLMs), and facial verification.**
 
-VerifyLens automates identity document verification and KYC (Know Your Customer) workflows. Real-world document extraction is often brittle due to noisy OCR (Optical Character Recognition) resulting from poor lighting, blur, and low-resolution uploads. VerifyLens solves this by feeding raw, noisy OCR output into a locally-hosted, fine-tuned Language Model (Qwen2.5-1.5B) that acts as an intelligent parser to extract structured identity fields from noisy OCR text, while a parallel facial verification pipeline confirms the user's identity.
+VerifyLens automates identity document verification and KYC (Know Your Customer) workflows. Real-world document extraction is often brittle due to noisy OCR (Optical Character Recognition) resulting from poor lighting, blur, and low-resolution uploads. VerifyLens solves this by offering a dual-extraction backend: 
+1. **Approach 1 (OCR + LLM):** Feeds raw, noisy PaddleOCR output into a locally-hosted, fine-tuned Language Model (Qwen2.5-1.5B) that acts as an intelligent parser.
+2. **Approach 2 (Direct VLM):** Bypasses OCR entirely, reading document pixels directly via a Vision-Language Model (Qwen2.5-VL) to emit structured JSON.
+
+A parallel facial verification pipeline independently confirms the user's identity.
 
 ---
 
@@ -14,16 +18,17 @@ Input: [ID Document Image] + [Selfie Image]
          ▼                        ▼
   ┌─────────────┐         ┌──────────────┐
   │ Doc Pipeline│         │ Face Pipeline│
-  │             │         │              │
-  │ PaddleOCR   │         │ MTCNN        │
-  │ (raw text)  │         │ (detection)  │
-  │      │      │         │              │
-  │      ▼      │         │              │
-  │ Qwen2.5-1.5B│         │ Inception    │
-  │   + LoRA    │         │ ResnetV1     │
-  │ (JSON Extr) │         │ (embeddings) │
-  └──────┬──────┘         └──────┬───────┘
-         │                       │
+  │ (Dynamic)   │         │              │
+  │             │         │ MTCNN        │
+  │ ┌─────────┐ │         │ (detection)  │
+  │ │VLM Extr.│ │         │              │
+  │ └────┬────┘ │         │              │
+  │      OR     │         │ Inception    │
+  │ ┌─────────┐ │         │ ResnetV1     │
+  │ │OCR+LLM  │ │         │ (embeddings) │
+  │ └────┬────┘ │         └──────┬───────┘
+  └──────┼──────┘                │
+         └─────────┬─────────────┘
          └─────────┬─────────────┘
                    ▼
           ┌─────────────────┐
@@ -37,17 +42,19 @@ Input: [ID Document Image] + [Selfie Image]
 
 ## Key Components
 
-1. **Document OCR Pipeline**: Uses PaddleOCR 3.7.0 to extract raw text blocks from document images.
-2. **OCR-to-JSON Language Model**: A Qwen2.5-1.5B language model used for OCR-to-JSON document extraction. It natively ignores OCR hallucinations and maps fuzzy values to structured JSON.
-3. **Face Verification**: MTCNN for bounding box detection followed by InceptionResnetV1 for high-dimensional facial embeddings, compared via cosine similarity.
-4. **REST API**: A FastAPI backend that orchestrates the execution of these pipelines to return a standardized verification verdict. The document branch performs sequential OCR-to-JSON extraction, while face verification runs independently and can execute concurrently.
+1. **Document Extraction Router**: Dynamically routes document processing to either the `vlm` or `ocr_llm` backend based on configuration.
+2. **Vision-Language Model (VLM)**: Qwen2.5-VL extracts identity fields directly from document images with robust layout understanding (Approach 2).
+3. **OCR-to-JSON Language Model**: PaddleOCR 3.7.0 combined with a fine-tuned Qwen2.5-1.5B model to act as a resilient OCR parser (Approach 1).
+4. **Face Verification**: MTCNN for bounding box detection followed by InceptionResnetV1 for high-dimensional facial embeddings, compared via cosine similarity.
+5. **REST API**: A FastAPI backend that orchestrates the execution of these pipelines to return a standardized verification verdict.
 
 ## Model Details
 
 | Pipeline | Role | Model | Framework |
 |----------|------|-------|-----------|
-| Document | OCR | PaddleOCR 3.7.0 | PaddlePaddle |
-| Document | Field Extractor | Qwen2.5-1.5B-Instruct-4bit | MLX (Apple Silicon) |
+| Document | VLM Extractor | Qwen2.5-VL-3B-Instruct-4bit | MLX (mlx-vlm) |
+| Document | OCR Backend | PaddleOCR 3.7.0 | PaddlePaddle |
+| Document | OCR-LLM Extractor | Qwen2.5-1.5B-Instruct-4bit | MLX (mlx-lm) |
 | Face | Detector | MTCNN | PyTorch |
 | Face | Embedder | InceptionResnetV1 | PyTorch |
 
@@ -175,5 +182,5 @@ VerifyLens/
 ## Future Improvements
 
 1. **ArcFace/RetinaFace Upgrade**: Replace the MTCNN/InceptionResnetV1 pipeline with state-of-the-art RetinaFace detection and ArcFace embeddings to increase facial recognition robustness under severe poses and varied lighting.
-2. **Vision-Language Model (VLM) Integration**: Evaluate dropping PaddleOCR entirely in favor of an end-to-end multimodal model (e.g., Qwen2-VL or LLaVA) that reads pixels directly and emits JSON, bypassing intermediate OCR noise.
+2. **Hybrid VLM + LoRA Architecture**: Explore fusing Approach 1 and Approach 2. Benchmark data indicates VLM excels at spatial layout (`doc_type`), while OCR+LoRA excels at high-fidelity identity numbers (`doc_number`).
 3. **Hardware Agnosticism**: Standardize the extraction pipeline utilizing PyTorch/vLLM so the API can scale seamlessly across Linux/CUDA environments in production.

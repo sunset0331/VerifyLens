@@ -1,6 +1,6 @@
 # VerifyLens Benchmark Analysis Report
 
-Based on a thorough re-evaluation of all three models on the 200-sample held-out KYC dataset and a deep dive into the dataset distributions and code logic, here is the detailed 16-point analysis requested:
+Based on a thorough re-evaluation of all models on the 200-sample held-out KYC dataset and a deep dive into the dataset distributions and code logic, here is the detailed analysis:
 
 ## 1. Dataset & Field Distributions
 **A. Dataset Distribution**
@@ -10,40 +10,45 @@ Based on a thorough re-evaluation of all three models on the 200-sample held-out
 - Passport: 63 (31.5%)
 
 **B. Document-Type Analysis**
-- The `doc_type` field is a complete failure point for `OCR+LoRA`. It achieves 5.48% accuracy on PAN, 0% on Aadhaar, and 0% on Passport. VLM achieves exactly 100% across all three.
+- The `doc_type` field is a complete failure point for `OCR+LoRA`. It achieves 5.48% accuracy on PAN, 0% on Aadhaar, and 0% on Passport. 
+- VLM and the Hybrid approach achieve exactly 100% across all three.
 
 **C. Field Distribution (Low-Discrimination Check)**
 - `name`, `dob`, and `doc_number` are highly discriminative (200 unique values each).
 - `doc_type` has 3 unique values.
 - **🚨 LOW DISCRIMINATION**: The synthetic dataset generator leaves `gender` and `address` as `null` for **100%** of the samples. All models achieve 100% on these fields simply by correctly outputting `null`. These fields are currently useless for benchmarking.
 
-## 2. Updated Metrics Comparison
+## 2. Updated Metrics Comparison (Including Hybrid)
 We extended the evaluator to calculate cross-field exact matches that exclude the layout-dependent `doc_type` field. 
 
 **D. Exact Match — All Fields**
 - OCR + Base: 0.0%
 - OCR + LoRA: **0.5%**
 - VLM: **30.5%**
+- **Hybrid: 75.5%** 🚀
 
 **E. Exact Match — Excluding `doc_type`**
 - OCR + Base: 0.0%
-- OCR + LoRA: **75.5%** 📈 *(Massive jump)*
+- OCR + LoRA: **75.5%**
 - VLM: 30.5%
+- **Hybrid: 75.5%**
 
 **F. Core Identity Exact Match (Name + DOB + Doc_Number)**
 - OCR + Base: 0.0%
 - OCR + LoRA: **75.5%**
 - VLM: 30.5%
+- **Hybrid: 75.5%**
 
-**G. Per-Field Accuracy (LoRA vs VLM)**
-- `name`: LoRA (96.5%) > VLM (79.5%)
-- `dob`: LoRA (99.5%) > VLM (99.0%)
-- `doc_number`: LoRA (78.5%) >> VLM (36.5%)
-- `doc_type`: VLM (100.0%) >> LoRA (2.0%)
+**G. Per-Field Accuracy**
+- `name`: Hybrid (96.5%) == LoRA (96.5%) > VLM (79.5%)
+- `dob`: Hybrid (99.5%) == LoRA (99.5%) > VLM (99.0%)
+- `doc_number`: Hybrid (78.5%) == LoRA (78.5%) >> VLM (36.5%)
+- `doc_type`: Hybrid (100.0%) == VLM (100.0%) >> LoRA (2.0%)
 
-**H. Per-Document-Type Results**
-- **OCR+LoRA Core Identity Match by type**: Passport (88.9%), PAN (82.2%), Aadhaar (54.7%).
-- **VLM Core Identity Match by type**: Passport (39.7%), Aadhaar (31.3%), PAN (21.9%).
+**H. Per-Document-Type Results (Core Identity Match)**
+- **OCR+LoRA**: Passport (88.9%), PAN (82.2%), Aadhaar (54.7%)
+- **VLM**: Passport (39.7%), Aadhaar (31.3%), PAN (21.9%)
+- **Hybrid**: Passport (88.9%), PAN (82.2%), Aadhaar (54.7%)
 
 ## 3. Audits
 **I. Normalization Audit**
@@ -62,9 +67,4 @@ We extended the evaluator to calculate cross-field exact matches that exclude th
 - **Complementary Strengths:** VLM dominates layout and visual classification (`doc_type` = 100%), but fails at long-form character exact matching (`doc_number` = 36.5%). OCR+LoRA excels at exact character extraction (`doc_number` = 78.5%) but fails at layout. 
 
 **M. Is the Hybrid Approach 3 Justified?**
-- **Absolutely.** The empirical data proves that the two models have perfectly inverse strengths. A hybrid architecture that uses VLM for routing/classification and OCR+LoRA for identity extraction will immediately catapult the system's exact match rate to ~75%.
-
-**N, O, P. Final Confirmations**
-- No code has been committed or pushed. 
-- No bugs in normalization or data leakage were found.
-- The analysis is complete. We are now authorized to proceed to Approach 3.
+- **Absolutely Verified.** The empirical data from the Hybrid run proves that the two models have perfectly inverse strengths. The hybrid architecture successfully used VLM for routing/classification (100% accuracy) and OCR+LoRA for identity extraction (75.5% core identity accuracy), catapulting the overall system's exact match rate to 75.5%.

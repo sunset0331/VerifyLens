@@ -17,7 +17,7 @@ import json
 import random
 import uuid
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 from PIL import Image, ImageDraw, ImageFont
 from faker import Faker
@@ -145,10 +145,16 @@ def generate_sample(doc_type: str) -> Dict:
     return {"image": image, "doc_type": doc_type, "qa_pairs": qa_pairs, "meta": context}
 
 
-def main(num_samples: int, output_dir: Path):
+def main(num_samples: int, output_dir: Path, split: str):
     output_dir.mkdir(parents=True, exist_ok=True)
     images_dir = output_dir / "images"
     images_dir.mkdir(exist_ok=True)
+    
+    # Use deterministic seed for benchmark
+    if split == "benchmark":
+        random.seed(9999)
+    else:
+        random.seed(42)
 
     doc_types = list(DOC_NUMBER_FN.keys())
     records = []
@@ -160,20 +166,37 @@ def main(num_samples: int, output_dir: Path):
         img_path = images_dir / f"{i:05d}_{doc_type}.jpg"
         sample["image"].save(img_path, "JPEG", quality=90)
 
-        for qa in sample["qa_pairs"]:
+        if split == "benchmark":
+            # Flat schema for fair benchmark evaluation
             records.append({
                 "id": f"{i:05d}",
                 "image_path": str(img_path.relative_to(output_dir)),
-                "doc_type": doc_type,
-                "question": qa["question"],
-                "answer": qa["answer"],
+                "document_type": doc_type,
+                "ground_truth": {
+                    "name": sample["meta"]["name"],
+                    "dob": sample["meta"]["dob"],
+                    "doc_number": sample["meta"]["doc_number"],
+                    "doc_type": sample["meta"]["doc_type"],
+                    "gender": None,
+                    "address": None
+                }
             })
+        else:
+            # DocVQA QA-pair schema for training
+            for qa in sample["qa_pairs"]:
+                records.append({
+                    "id": f"{i:05d}",
+                    "image_path": str(img_path.relative_to(output_dir)),
+                    "doc_type": doc_type,
+                    "question": qa["question"],
+                    "answer": qa["answer"],
+                })
 
         if (i + 1) % 500 == 0:
             print(f"  Generated {i + 1}/{num_samples} samples...")
 
     # Save JSONL
-    jsonl_path = output_dir / "dataset.jsonl"
+    jsonl_path = output_dir / f"{split}.jsonl"
     with open(jsonl_path, "w") as f:
         for rec in records:
             f.write(json.dumps(rec) + "\n")
@@ -186,5 +209,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate synthetic ID card dataset")
     parser.add_argument("--num_samples", type=int, default=5000)
     parser.add_argument("--output", type=Path, default=Path("data/synthetic"))
+    parser.add_argument("--split", type=str, choices=["train", "val", "benchmark"], default="train", help="Which dataset split to generate.")
     args = parser.parse_args()
-    main(args.num_samples, args.output)
+    main(args.num_samples, args.output, args.split)

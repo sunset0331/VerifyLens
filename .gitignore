@@ -60,3 +60,4 @@ __pycache__/
 data/synthetic/
 .paddlex/
 eval_results.json
+kaggle_benchmark/adapters/

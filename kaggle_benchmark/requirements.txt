@@ -1,0 +1,52 @@
+# VerifyLens Kaggle Benchmark — Requirements
+# ==========================================
+# IMPORTANT: This is the GPU/CUDA requirements file for Kaggle.
+# Do NOT mix with the main production requirements.txt (which includes mlx).
+#
+# Install on Kaggle:
+#   pip install -r requirements.txt
+#
+# Python >= 3.10
+
+# ── PyTorch (CUDA) ───────────────────────────────────────────────
+# On Kaggle, PyTorch with CUDA is pre-installed.
+# If installing manually, use the CUDA wheel:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.1.0
+torchvision>=0.16.0
+
+# ── HuggingFace Transformers + Qwen2.5-VL support ────────────────
+transformers>=4.49.0
+huggingface-hub>=0.24.0
+tokenizers>=0.21.0
+safetensors>=0.4.0
+accelerate>=0.27.0
+
+# ── Qwen2.5-VL image utilities ────────────────────────────────────
+qwen-vl-utils>=0.0.8
+
+# ── Flash Attention 2 (optional, faster VLM inference) ───────────
+# Uncomment if your Kaggle GPU supports it (A100, H100).
+# If flash-attn fails to build, the benchmark falls back automatically.
+# flash-attn>=2.5.0
+
+# ── OCR (Approach 1) ─────────────────────────────────────────────
+# On Kaggle with CUDA, use paddlepaddle-gpu
+paddlepaddle-gpu>=2.6.0
+paddleocr>=2.7.0
+
+# ── Image processing ─────────────────────────────────────────────
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# ── Hardware detection ────────────────────────────────────────────
+psutil>=5.9.0
+
+# ── Utilities ─────────────────────────────────────────────────────
+pyyaml>=6.0
+tqdm>=4.66.0
+
+# ── NOT INCLUDED (Mac-only, do not install on Kaggle) ─────────────
+# mlx
+# mlx-lm
+# mlx-vlm

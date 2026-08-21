@@ -17,9 +17,7 @@ def run_kyc_benchmark(dataset_path: str, output_dir: str):
     print("=== Track A: VerifyLens KYC Benchmark ===")
     
     configs = [
-        {"name": "OCR + Base", "mode": "ocr_llm", "adapter": None},
-        {"name": "OCR + LoRA", "mode": "ocr_llm", "adapter": "checkpoints/verifylens-adapter"},
-        {"name": "VLM", "mode": "vlm", "adapter": None},
+        {"name": "Hybrid", "mode": "hybrid", "adapter": "checkpoints/verifylens-adapter"},
     ]
     
     results = {}
@@ -101,7 +99,7 @@ def run_kyc_benchmark(dataset_path: str, output_dir: str):
         print(f"Done. Exact Match Rate: {summary.get('exact_match_rate', 0)}%")
         
     # Save overall results
-    with open(Path(output_dir) / "kyc_benchmark_results.json", "w") as f:
+    with open(Path(output_dir) / "kyc_hybrid_results.json", "w") as f:
         json.dump(results, f, indent=2)
         
     return results

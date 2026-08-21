@@ -1,0 +1,90 @@
+# VerifyLens Kaggle Benchmark — Configuration
+# ============================================
+# Edit this file to override defaults passed in via CLI.
+# CLI arguments always take precedence over values here.
+
+benchmark:
+  # Path to benchmark.jsonl (relative to run_benchmark.py location)
+  benchmark_dir: "benchmark"
+
+  # Output directory for results
+  output_dir: "results"
+
+  # Default sample limit (200 = full benchmark)
+  default_limit: 200
+
+  # Batch size — DO NOT increase above 1 for VLM without ≥40 GB VRAM
+  batch_size: 1
+
+
+models:
+  # VLM (Approach 2) — Kaggle GPU equivalent of mlx-community/Qwen2.5-VL-3B-Instruct-4bit
+  vlm:
+    model_id: "Qwen/Qwen2.5-VL-3B-Instruct"
+    dtype: "bfloat16"
+    max_new_tokens: 256
+    temperature: 0.0
+    resize_max_px: 1120
+    # Approximate download size: ~7 GB
+    # Approximate GPU memory during inference: ~8-10 GB (BF16)
+    # Minimum recommended GPU: T4 (16 GB) or better
+
+  # LLM base (Approach 1, no LoRA) — Kaggle GPU equivalent of mlx-community/Qwen2.5-1.5B-Instruct-4bit
+  base:
+    model_id: "Qwen/Qwen2.5-1.5B-Instruct"
+    dtype: "bfloat16"
+    max_new_tokens: 128
+    temperature: 0.0
+    # Approximate download size: ~3 GB
+    # Approximate GPU memory during inference: ~4 GB (BF16)
+
+
+ocr:
+  # PaddleOCR configuration (Approach 1 pipeline)
+  lang: "en"
+  use_gpu: true     # Set to false for CPU-only debugging
+  # Version: paddleocr >= 2.7.0 + paddlepaddle-gpu
+
+
+# LoRA adapter status
+lora:
+  status: "NOT EVALUABLE ON KAGGLE WITHOUT CONVERSION"
+  reason: >
+    The existing adapter (checkpoints/verifylens-adapter/) was trained with
+    mlx-lm against mlx-community/Qwen2.5-1.5B-Instruct-4bit (MLX 4-bit format).
+    HuggingFace PEFT requires different layer naming and a full-precision base model.
+    Direct loading is not possible. See models/README.md.
+  production_model: "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+  production_adapter: "checkpoints/verifylens-adapter/adapters.safetensors"
+  adapter_format: "MLX LoRA (mlx-lm)"
+  rank: 8
+  trained_iters: 600
+
+
+production_reference:
+  # Reference values from Mac production benchmark (for comparison)
+  # Source: results/kyc_benchmark_results.json
+  ocr_base:
+    name_accuracy: 95.0
+    dob_accuracy: 41.0
+    doc_number_accuracy: 0.0
+    core_identity_exact_match: 0.0
+    latency_ms_mean: 887.1
+
+  ocr_lora:
+    name_accuracy: 96.5
+    dob_accuracy: 99.5
+    doc_number_accuracy: 78.5
+    core_identity_exact_match: 75.5
+    latency_ms_mean: 952.9
+
+  vlm:
+    name_accuracy: 79.5
+    dob_accuracy: 99.0
+    doc_number_accuracy: 36.5
+    core_identity_exact_match: 30.5
+    latency_ms_mean: 4935.3
+    note: >
+      Mac production: mlx-community/Qwen2.5-VL-3B-Instruct-4bit via mlx-vlm.
+      Kaggle: Qwen/Qwen2.5-VL-3B-Instruct BF16 via HuggingFace Transformers.
+      Same model family — NOT bit-identical.

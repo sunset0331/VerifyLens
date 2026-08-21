@@ -1,16 +1,49 @@
-model:
-  vlm:
-    name: "Qwen/Qwen2-VL-2B-Instruct"
-    load_in_4bit: true
-    bnb_4bit_compute_dtype: "float16"
-    bnb_4bit_quant_type: "nf4"
-    use_nested_quant: false
+# ============================================================
+# VerifyLens — Central Configuration
+# ============================================================
 
+# ── Extraction Mode ──────────────────────────────────────────
+# Controls which document extraction approach is used at runtime.
+#
+#   ocr_llm  →  Approach 1: image → PaddleOCR → Qwen2.5-1.5B text LLM → JSON
+#   vlm      →  Approach 2: image → Qwen2.5-VL-2B (mlx-vlm) → JSON
+#
+# Change this value and restart the server to switch approaches.
+extraction:
+  mode: "ocr_llm"
+
+  # ── VLM (Approach 2) ───────────────────────────────────────
+  vlm_model: "mlx-community/Qwen2.5-VL-2B-Instruct-4bit"
+  vlm_max_new_tokens: 256
+  vlm_temperature: 0.0
+  vlm_resize_max_px: 1120
+
+  # ── OCR + LLM (Approach 1) ─────────────────────────────────
+  ocr_llm_model: "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+  ocr_llm_adapter_path: "checkpoints/verifylens-adapter"
+  ocr_llm_max_tokens: 128
+
+
+# ── Model Specs (reference / training) ──────────────────────
+model:
+  # Approach 2 VLM — used by vlm_extractor.py via mlx-vlm
+  vlm:
+    name: "mlx-community/Qwen2.5-VL-2B-Instruct-4bit"
+    framework: "mlx-vlm"
+
+  # Approach 1 text LLM — used by ocr_llm_extractor.py via mlx-lm
+  ocr_llm:
+    name: "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+    framework: "mlx-lm"
+    adapter_path: "checkpoints/verifylens-adapter"
+
+  # Face — actual implementation uses MTCNN + InceptionResnetV1 (facenet-pytorch)
   face:
-    detector: "retinaface"
-    embedder: "arcface"
+    detector: "mtcnn"
+    embedder: "inceptionresnetv1"
     similarity_threshold: 0.65
 
+  # CLIP document classifier
   clip:
     model: "ViT-L/14"
     doc_classes:
@@ -19,6 +52,8 @@ model:
       - "indian passport"
       - "driving license"
 
+
+# ── Training (Approach 1 LoRA fine-tuning via mlx-lm) ───────
 training:
   lora:
     r: 16
@@ -45,6 +80,8 @@ training:
     report_to: "none"
     max_seq_length: 1024
 
+
+# ── Data ─────────────────────────────────────────────────────
 data:
   synthetic:
     num_samples: 5000
@@ -53,6 +90,8 @@ data:
   train_split: 0.85
   val_split: 0.15
 
+
+# ── API ──────────────────────────────────────────────────────
 api:
   host: "0.0.0.0"
   port: 8000
